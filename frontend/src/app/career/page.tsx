@@ -5,6 +5,7 @@ import React, { useState } from "react";
 
 import LocalStorageWarning from "@/components/backup/LocalStorageWarning";
 import LanguageSwitcher from "@/components/common/LanguageSwitcher";
+import { useLocale } from "@/components/common/LocaleProvider";
 
 interface JobMatchItem {
   id: string;
@@ -37,6 +38,7 @@ interface VisaRoadmapResult {
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1";
 
 export default function CareerPage() {
+  const { t } = useLocale();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -67,12 +69,12 @@ export default function CareerPage() {
       const res = await fetch(url);
       const data = await res.json();
       if (!res.ok) {
-        setErrorMsg("ম্যাচড জব লোড করা যায়নি।");
+        setErrorMsg(t("career.jobsError"));
         return;
       }
       setJobs(Array.isArray(data?.matches) ? data.matches : []);
     } catch {
-      setErrorMsg("ব্যাকএন্ড সার্ভারের সাথে সংযোগ করা যায়নি।");
+        setErrorMsg(t("common.serverError"));
     } finally {
       setLoadingJobs(false);
     }
@@ -100,12 +102,12 @@ export default function CareerPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setErrorMsg("সিভি ও কভার লেটার তৈরি করা যায়নি।");
+        setErrorMsg(t("career.cvError"));
         return;
       }
       setCvResult(data);
     } catch {
-      setErrorMsg("সিভি তৈরির সময় সার্ভার এরর হয়েছে।");
+      setErrorMsg(t("career.serverError"));
     } finally {
       setLoadingCv(false);
     }
@@ -121,12 +123,12 @@ export default function CareerPage() {
       const res = await fetch(url);
       const data = await res.json();
       if (!res.ok) {
-        setErrorMsg("ভিসা রোডম্যাপ লোড করা যায়নি।");
+        setErrorMsg(t("career.visaError"));
         return;
       }
       setVisaResult(data);
     } catch {
-      setErrorMsg("ভিসা রোডম্যাপ লোড করতে সমস্যা হয়েছে।");
+      setErrorMsg(t("common.serverError"));
     } finally {
       setLoadingVisa(false);
     }
@@ -136,7 +138,7 @@ export default function CareerPage() {
     <main className="mx-auto max-w-6xl space-y-8 px-4 py-8">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-2xl font-bold text-slate-900">
-          জব ম্যাচিং, দেশভিত্তিক সিভি/কভার লেটার ও ভিসা গাইড
+          {t("career.title")}
         </h1>
         <LanguageSwitcher />
       </div>
@@ -152,11 +154,11 @@ export default function CareerPage() {
         onSubmit={handleGenerateCvAndLetter}
         className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
       >
-        <h2 className="text-lg font-bold text-slate-900">প্রোফাইল ও গন্তব্য তথ্য</h2>
+        <h2 className="text-lg font-bold text-slate-900">{t("career.profile")}</h2>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div>
-            <label className="block text-xs font-semibold text-slate-700">পূর্ণ নাম</label>
+            <label className="block text-xs font-semibold text-slate-700">{t("career.fullName")}</label>
             <input
               type="text"
               required
@@ -167,7 +169,7 @@ export default function CareerPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700">ইমেইল</label>
+            <label className="block text-xs font-semibold text-slate-700">{t("career.email")}</label>
             <input
               type="email"
               required
@@ -178,7 +180,7 @@ export default function CareerPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700">ফোন / WhatsApp</label>
+            <label className="block text-xs font-semibold text-slate-700">{t("career.phone")}</label>
             <input
               type="text"
               required
@@ -189,7 +191,7 @@ export default function CareerPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700">বর্তমান দেশ (যেখান থেকে আবেদন করবেন)</label>
+            <label className="block text-xs font-semibold text-slate-700">{t("career.origin")}</label>
             <input
               type="text"
               required
@@ -200,7 +202,7 @@ export default function CareerPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700">গন্তব্য দেশ (যে দেশে যেতে চান)</label>
+            <label className="block text-xs font-semibold text-slate-700">{t("career.destination")}</label>
             <input
               type="text"
               required
@@ -212,7 +214,7 @@ export default function CareerPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700">কাজের ক্যাটাগরি</label>
+            <label className="block text-xs font-semibold text-slate-700">{t("career.category")}</label>
             <input
               type="text"
               required
@@ -224,7 +226,7 @@ export default function CareerPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700">আগ্রহী পদের নাম</label>
+            <label className="block text-xs font-semibold text-slate-700">{t("career.jobTitle")}</label>
             <input
               type="text"
               required
@@ -235,7 +237,7 @@ export default function CareerPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700">কাজের অভিজ্ঞতা (বছর)</label>
+            <label className="block text-xs font-semibold text-slate-700">{t("career.experience")}</label>
             <input
               type="number"
               min={0}
@@ -248,7 +250,7 @@ export default function CareerPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700">নিয়োগকর্তা / কোম্পানির নাম (ঐচ্ছিক)</label>
+            <label className="block text-xs font-semibold text-slate-700">{t("career.employer")}</label>
             <input
               type="text"
               value={employerName}
@@ -258,7 +260,7 @@ export default function CareerPage() {
           </div>
 
           <div className="sm:col-span-3">
-            <label className="block text-xs font-semibold text-slate-700">দক্ষতা, লাইসেন্স, সার্টিফিকেট ও অভিজ্ঞতার বিবরণ</label>
+            <label className="block text-xs font-semibold text-slate-700">{t("career.skills")}</label>
             <textarea
               required
               rows={3}
@@ -276,7 +278,7 @@ export default function CareerPage() {
             onClick={handleMatchJobs}
             className="rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-indigo-700 disabled:opacity-50"
           >
-            {loadingJobs ? "ম্যাচিং চলছে..." : "প্রোফাইলের সাথে জব ম্যাচ করুন"}
+            {loadingJobs ? t("career.matching") : t("career.match")}
           </button>
 
           <button
@@ -284,7 +286,7 @@ export default function CareerPage() {
             disabled={loadingCv}
             className="rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-50"
           >
-            {loadingCv ? "তৈরি হচ্ছে..." : "দেশভিত্তিক সিভি ও কভার লেটার তৈরি করুন"}
+            {loadingCv ? t("career.generating") : t("career.generate")}
           </button>
 
           <button
@@ -293,7 +295,7 @@ export default function CareerPage() {
             onClick={handleLoadVisaRoadmap}
             className="rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
           >
-            {loadingVisa ? "লোড হচ্ছে..." : "ভিসা ও এম্বাসি গাইডলাইন দেখুন"}
+            {loadingVisa ? t("career.loading") : t("career.visa")}
           </button>
         </div>
       </form>
@@ -301,7 +303,7 @@ export default function CareerPage() {
       {/* ম্যাচড জব তালিকা */}
       {jobs.length > 0 ? (
         <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-bold text-slate-900">ম্যাচ হওয়া জবসমূহ (রেফারেন্স সহ)</h2>
+          <h2 className="text-lg font-bold text-slate-900">{t("career.jobsHeading")}</h2>
           <div className="space-y-3">
             {jobs.map((job) => (
               <div key={job.id} className="rounded-xl border border-slate-200 p-4 text-xs">
@@ -310,11 +312,11 @@ export default function CareerPage() {
                     {job.title} — {job.country}
                   </span>
                   <span className="rounded-full bg-emerald-100 px-2.5 py-1 font-bold text-emerald-800">
-                    Match: {job.match_score}%
+                    {t("career.matchScore", { score: job.match_score })}
                   </span>
                 </div>
                 <div className="mt-1 text-slate-700">
-                  Employer: {job.employer} | Salary: {job.salary_range} | CV Format: {job.cv_format}
+                  {t("career.employerLabel")} {job.employer} | {t("career.salaryLabel")} {job.salary_range} | {t("career.cvFormatLabel")} {job.cv_format}
                 </div>
                 <div className="mt-2">
                   <a
@@ -323,7 +325,7 @@ export default function CareerPage() {
                     rel="noopener noreferrer"
                     className="font-semibold text-blue-600 underline"
                   >
-                    অফিসিয়াল রেফারেন্স / আবেদন পোর্টাল: {job.reference_url}
+                    {t("career.officialReference")} {job.reference_url}
                   </a>
                 </div>
               </div>
@@ -336,14 +338,14 @@ export default function CareerPage() {
       {cvResult ? (
         <section className="grid grid-cols-1 gap-6 md:grid-cols-2">
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h3 className="text-base font-bold text-slate-900">তৈরিকৃত সিভি ({cvResult.cv_format})</h3>
+            <h3 className="text-base font-bold text-slate-900">{t("career.cvHeading", { format: cvResult.cv_format })}</h3>
             <pre className="mt-3 whitespace-pre-wrap rounded-lg bg-slate-50 p-3 font-mono text-xs text-slate-800">
               {cvResult.cv_document}
             </pre>
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h3 className="text-base font-bold text-slate-900">কভার লেটার (আবেদন / ইমেইলের জন্য)</h3>
+            <h3 className="text-base font-bold text-slate-900">{t("career.coverHeading")}</h3>
             <pre className="mt-3 whitespace-pre-wrap rounded-lg bg-slate-50 p-3 font-mono text-xs text-slate-800">
               {cvResult.cover_letter}
             </pre>
@@ -355,12 +357,12 @@ export default function CareerPage() {
       {visaResult ? (
         <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-lg font-bold text-slate-900">
-            ভিসা ও এম্বাসি প্রসেস ({visaResult.origin_country} থেকে {visaResult.destination_country})
+            {t("career.visaHeading", { origin: visaResult.origin_country, destination: visaResult.destination_country })}
           </h2>
           <p className="text-xs font-semibold text-slate-800">{visaResult.submission_guidance}</p>
-          <p className="text-xs text-slate-700">খরচ ও ফি তথ্য: {visaResult.estimated_official_fees}</p>
+          <p className="text-xs text-slate-700">{t("career.feesLabel")} {visaResult.estimated_official_fees}</p>
           <div>
-            <div className="text-xs font-bold text-slate-900">প্রয়োজনীয় ডকুমেন্টসমূহ:</div>
+            <div className="text-xs font-bold text-slate-900">{t("career.documentsHeading")}</div>
             <ul className="mt-1 list-disc space-y-1 pl-5 text-xs text-slate-700">
               {visaResult.required_documents.map((doc) => (
                 <li key={doc}>{doc}</li>

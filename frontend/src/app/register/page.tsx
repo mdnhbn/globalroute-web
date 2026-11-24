@@ -2,8 +2,11 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import LanguageSwitcher from "@/components/common/LanguageSwitcher";
+import { useLocale } from "@/components/common/LocaleProvider";
 
 interface PaymentMethodItem {
   id: number;
@@ -16,6 +19,8 @@ interface PaymentMethodItem {
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1";
 
 export default function RegisterPage() {
+  const router = useRouter();
+  const { locale, t } = useLocale();
   const [accountType, setAccountType] = useState<"individual" | "agency">("individual");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -44,6 +49,8 @@ export default function RegisterPage() {
   const [submitting, setSubmitting] = useState(false);
   const [resultBanner, setResultBanner] = useState<string>("");
   const [errorBanner, setErrorBanner] = useState<string>("");
+
+  useEffect(() => setPreferredLanguage(locale), [locale]);
 
   useEffect(() => {
     if (accountType !== "agency") return;
@@ -104,19 +111,19 @@ export default function RegisterPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setErrorBanner(typeof data?.detail === "string" ? data.detail : "রেজিস্ট্রেশন সম্পন্ন করা যায়নি।");
+        if (data?.detail === "Email already registered") {
+          setErrorBanner(t("register.emailExists"));
+        } else if (res.status === 503 && data?.detail === "Email verification is not configured") {
+          setErrorBanner(t("register.emailUnavailable"));
+        } else {
+          setErrorBanner(t("register.failed"));
+        }
         return;
       }
 
-      if (accountType === "agency") {
-        setResultBanner(
-          "আপনার Agency আবেদন, ডকুমেন্ট ও Manual Payment প্রুফ জমা হয়েছে। অ্যাকাউন্টটি Pending Verification অবস্থায় আছে—অনুমোদনের জন্য অপেক্ষা করুন। অনুমোদন হলে WhatsApp-এ জানানো হবে।"
-        );
-      } else {
-        setResultBanner("Individual অ্যাকাউন্ট সফলভাবে তৈরি হয়েছে। এখন আপনি সাইন-ইন করতে পারবেন।");
-      }
+      router.push(`/verify-email?email=${encodeURIComponent(email)}&locale=${locale}&account=${accountType}`);
     } catch {
-      setErrorBanner("সার্ভারের সাথে সংযোগ করা যায়নি।");
+      setErrorBanner(t("common.serverError"));
     } finally {
       setSubmitting(false);
     }
@@ -125,13 +132,13 @@ export default function RegisterPage() {
   return (
     <main className="mx-auto max-w-3xl px-4 py-8">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold text-slate-900">অ্যাকাউন্ট রেজিস্ট্রেশন</h1>
-        <LanguageSwitcher value={preferredLanguage} onChange={(loc) => setPreferredLanguage(loc)} />
+        <h1 className="text-2xl font-bold text-slate-900">{t("register.title")}</h1>
+        <LanguageSwitcher onChange={(loc) => setPreferredLanguage(loc)} />
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div>
-          <p className="mb-2 text-sm font-bold text-slate-800">আপনি কোন ক্যাটাগরিতে নিতে চাচ্ছেন?</p>
+          <p className="mb-2 text-sm font-bold text-slate-800">{t("register.category")}</p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <button
               type="button"
@@ -142,8 +149,8 @@ export default function RegisterPage() {
                   : "border-slate-200 bg-white text-slate-700"
               }`}
             >
-              <div className="font-bold">Individual User</div>
-              <div className="text-xs opacity-80">সরাসরি সাইন-আপ ও লগইন; ফ্রি ব্যবহার (বিজ্ঞাপনসহ)।</div>
+              <div className="font-bold">{t("register.individual")}</div>
+              <div className="text-xs opacity-80">{t("register.individualDescription")}</div>
             </button>
 
             <button
@@ -155,15 +162,15 @@ export default function RegisterPage() {
                   : "border-slate-200 bg-white text-slate-700"
               }`}
             >
-              <div className="font-bold">Agency Account</div>
-              <div className="text-xs opacity-80">বৈধ লাইসেন্স/ডকুমেন্ট ও Manual Payment লাগবে; অনুমোদনের অপেক্ষা থাকবে।</div>
+              <div className="font-bold">{t("register.agency")}</div>
+              <div className="text-xs opacity-80">{t("register.agencyDescription")}</div>
             </button>
           </div>
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
-            <label className="block text-xs font-semibold text-slate-700">পূর্ণ নাম</label>
+            <label className="block text-xs font-semibold text-slate-700">{t("register.fullName")}</label>
             <input
               type="text"
               required
@@ -174,7 +181,7 @@ export default function RegisterPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700">ইমেইল</label>
+            <label className="block text-xs font-semibold text-slate-700">{t("register.email")}</label>
             <input
               type="email"
               required
@@ -185,7 +192,7 @@ export default function RegisterPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700">WhatsApp নম্বর (কান্ট্রি কোডসহ)</label>
+            <label className="block text-xs font-semibold text-slate-700">{t("register.whatsapp")}</label>
             <input
               type="text"
               required
@@ -197,7 +204,7 @@ export default function RegisterPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700">দেশ</label>
+            <label className="block text-xs font-semibold text-slate-700">{t("register.country")}</label>
             <input
               type="text"
               required
@@ -208,7 +215,7 @@ export default function RegisterPage() {
           </div>
 
           <div className="sm:col-span-2">
-            <label className="block text-xs font-semibold text-slate-700">পাসওয়ার্ড</label>
+            <label className="block text-xs font-semibold text-slate-700">{t("register.password")}</label>
             <input
               type="password"
               required
@@ -222,11 +229,11 @@ export default function RegisterPage() {
 
         {accountType === "agency" ? (
           <div className="space-y-4 rounded-xl border border-amber-300 bg-amber-50/50 p-4">
-            <h2 className="text-base font-bold text-slate-900">Agency ডকুমেন্ট ও Manual Payment তথ্য</h2>
+            <h2 className="text-base font-bold text-slate-900">{t("register.agency")} — {t("register.paymentMethod")}</h2>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label className="block text-xs font-semibold text-slate-700">এজেন্সির নাম</label>
+                <label className="block text-xs font-semibold text-slate-700">{t("register.agencyName")}</label>
                 <input
                   type="text"
                   required
@@ -237,7 +244,7 @@ export default function RegisterPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700">এজেন্সির দেশ</label>
+                <label className="block text-xs font-semibold text-slate-700">{t("register.registrationCountry")}</label>
                 <input
                   type="text"
                   required
@@ -248,7 +255,7 @@ export default function RegisterPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700">লাইসেন্স / রেজিস্ট্রেশন নম্বর</label>
+                <label className="block text-xs font-semibold text-slate-700">{t("register.license")}</label>
                 <input
                   type="text"
                   required
@@ -259,7 +266,7 @@ export default function RegisterPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700">অফিসের ঠিকানা</label>
+                <label className="block text-xs font-semibold text-slate-700">{t("register.office")}</label>
                 <input
                   type="text"
                   required
@@ -270,7 +277,7 @@ export default function RegisterPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700">ট্রেড লাইসেন্স ডকুমেন্ট (URL/Ref)</label>
+                <label className="block text-xs font-semibold text-slate-700">{t("register.tradeLicense")}</label>
                 <input
                   type="text"
                   required
@@ -281,7 +288,7 @@ export default function RegisterPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700">রিক্রুটিং/ট্রাভেল লাইসেন্স (ঐচ্ছিক/প্রযোজ্য হলে)</label>
+                <label className="block text-xs font-semibold text-slate-700">{t("register.recruitingLicense")}</label>
                 <input
                   type="text"
                   value={recruitingLicenseDoc}
@@ -291,7 +298,7 @@ export default function RegisterPage() {
               </div>
 
               <div className="sm:col-span-2">
-                <label className="block text-xs font-semibold text-slate-700">মালিকের NID / পাসপোর্ট ডকুমেন্ট (URL/Ref)</label>
+                <label className="block text-xs font-semibold text-slate-700">{t("register.ownerId")}</label>
                 <input
                   type="text"
                   required
@@ -304,15 +311,15 @@ export default function RegisterPage() {
 
             {activeMethodObj ? (
               <div className="rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-800">
-                <div className="font-bold">নির্বাচিত পেমেন্ট নির্দেশনা ({activeMethodObj.name}):</div>
-                <div className="mt-1">অ্যাকাউন্ট/ওয়ালেট: {activeMethodObj.account_details}</div>
+                <div className="font-bold">{t("register.paymentMethod")}: {activeMethodObj.name}</div>
+                <div className="mt-1">{t("register.accountWallet")}: {activeMethodObj.account_details}</div>
                 <div className="mt-1">{activeMethodObj.instructions}</div>
               </div>
             ) : null}
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-700">পেমেন্ট মেথড</label>
+                <label className="block text-xs font-semibold text-slate-700">{t("register.paymentMethod")}</label>
                 <input
                   type="text"
                   required
@@ -324,7 +331,7 @@ export default function RegisterPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700">পরিমাণ ও কারেন্সি</label>
+                <label className="block text-xs font-semibold text-slate-700">{t("register.paymentAmount")}</label>
                 <div className="mt-1 flex gap-2">
                   <input
                     type="number"
@@ -345,7 +352,7 @@ export default function RegisterPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700">Transaction ID / Reference</label>
+                <label className="block text-xs font-semibold text-slate-700">{t("register.transaction")}</label>
                 <input
                   type="text"
                   required
@@ -356,7 +363,7 @@ export default function RegisterPage() {
               </div>
 
               <div className="sm:col-span-3">
-                <label className="block text-xs font-semibold text-slate-700">পেমেন্ট প্রুফ / স্ক্রিনশট লিংক বা রেফারেন্স</label>
+                <label className="block text-xs font-semibold text-slate-700">{t("register.proof")}</label>
                 <input
                   type="text"
                   value={proofReference}
@@ -383,9 +390,15 @@ export default function RegisterPage() {
           disabled={submitting}
           className="w-full rounded-xl bg-blue-600 py-3 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-50"
         >
-          {submitting ? "সাবমিট হচ্ছে..." : "রেজিস্ট্রেশন সম্পন্ন করুন"}
+          {submitting ? t("register.submitting") : t("register.submit")}
         </button>
       </form>
+      <Link
+        href={`${API_BASE}/auth/google?locale=${encodeURIComponent(locale)}`}
+        className="mx-auto mt-4 block max-w-3xl rounded-xl border border-slate-300 bg-white py-3 text-center text-sm font-bold text-slate-800 hover:bg-slate-50"
+      >
+        {t("login.google")}
+      </Link>
     </main>
   );
 }

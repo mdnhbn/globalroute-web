@@ -2,6 +2,7 @@
 import type { Metadata } from "next";
 import React from "react";
 
+import { LocaleProvider } from "@/components/common/LocaleProvider";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -11,14 +12,14 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" dir="ltr" suppressHydrationWarning>
+    <html lang="bn" dir="ltr" suppressHydrationWarning>
       <body className="min-h-screen bg-slate-50 text-slate-900 antialiased">
         <script
           dangerouslySetInnerHTML={{
             __html: `
               (function () {
                 try {
-                  var loc = window.localStorage.getItem("globalroute_selected_locale") || "en";
+                  var loc = window.localStorage.getItem("globalroute_selected_locale") || "bn";
                   var clean = String(loc).trim().toLowerCase();
                   var isRtl = clean === "ur" || clean === "ar";
                   document.documentElement.lang = clean || "en";
@@ -28,7 +29,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             `,
           }}
         />
-        {children}
+        <LocaleProvider>{children}</LocaleProvider>
       </body>
     </html>
   );

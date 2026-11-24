@@ -1,58 +1,32 @@
 // Language: TypeScript (React/Next.js) | Target: Multi-Language Selector with Automatic RTL Direction
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React from "react";
 
-import {
-  getTextDirection,
-  normalizeLocale,
-  SUPPORTED_LOCALES,
-  SupportedLocale,
-} from "@/lib/i18n";
+import { normalizeLocale, SUPPORTED_LOCALES, SupportedLocale } from "@/lib/i18n";
+import { useLocale } from "@/components/common/LocaleProvider";
 
 interface LanguageSwitcherProps {
-  value?: string;
   onChange?: (locale: SupportedLocale) => void;
 }
 
-const STORAGE_KEY = "globalroute_selected_locale";
-
-export default function LanguageSwitcher({ value, onChange }: LanguageSwitcherProps) {
-  const [localSelection, setLocalSelection] = useState<SupportedLocale>(() => {
-    if (typeof window !== "undefined") {
-      const saved = window.localStorage.getItem(STORAGE_KEY);
-      if (saved) return normalizeLocale(saved);
-    }
-    return "en";
-  });
-  const selected = value ? normalizeLocale(value) : localSelection;
-
-  useEffect(() => {
-    if (typeof document !== "undefined") {
-      document.documentElement.lang = selected;
-      document.documentElement.dir = getTextDirection(selected);
-    }
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(STORAGE_KEY, selected);
-    }
-  }, [selected]);
+export default function LanguageSwitcher({ onChange }: LanguageSwitcherProps) {
+  const { locale, setLocale, t } = useLocale();
 
   function handleSelectChange(e: React.ChangeEvent<HTMLSelectElement>) {
     const nextLocale = normalizeLocale(e.target.value);
-    setLocalSelection(nextLocale);
-    if (onChange) {
-      onChange(nextLocale);
-    }
+    setLocale(nextLocale);
+    onChange?.(nextLocale);
   }
 
   return (
     <div className="inline-flex items-center gap-2">
       <label htmlFor="language-switcher-select" className="text-xs font-semibold text-slate-700">
-        Language:
+        {t("language.label")}
       </label>
       <select
         id="language-switcher-select"
-        value={selected}
+        value={locale}
         onChange={handleSelectChange}
         className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-900 shadow-sm focus:border-blue-600 focus:outline-none"
       >

@@ -1,11 +1,12 @@
 // Language: TypeScript (React/Next.js) | Target: Login Page with Pending Agency Status Handling
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import LanguageSwitcher from "@/components/common/LanguageSwitcher";
+import { useLocale } from "@/components/common/LocaleProvider";
 import WhatsAppButton from "@/components/common/WhatsAppButton";
 import { API_BASE, saveSessionToken, type AccountRole, type AccountStatus } from "@/lib/account-session";
 
@@ -20,11 +21,22 @@ interface LoginApiResponse {
 
 export default function LoginPage() {
   const router = useRouter();
+  const { locale, setLocale, t } = useLocale();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [statusNotice, setStatusNotice] = useState("");
   const [errorNotice, setErrorNotice] = useState("");
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.hash.slice(1));
+    const oauthError = params.get("oauth_error");
+    if (!oauthError) return;
+    const returnedLocale = params.get("locale");
+    if (returnedLocale) setLocale(returnedLocale);
+    setErrorNotice(oauthError === "google_unavailable" ? t("login.googleUnavailable") : t("login.googleFailed"));
+    window.history.replaceState(null, "", "/login");
+  }, [setLocale, t]);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -41,24 +53,24 @@ export default function LoginPage() {
 
       const data = (await res.json()) as LoginApiResponse;
       if (!res.ok) {
-        setErrorNotice(typeof data?.detail === "string" ? data.detail : "লগইন ব্যর্থ হয়েছে।");
+        setErrorNotice(data?.detail === "Email verification required" ? t("login.verificationRequired") : t("login.failed"));
         return;
       }
 
       saveSessionToken(data.access_token);
       if (data.preferred_language) {
-        window.localStorage.setItem("globalroute_selected_locale", data.preferred_language);
+        setLocale(data.preferred_language);
       }
 
       if (data.role === "agency" && data.status === "pending_verification") {
         setStatusNotice(
-          "আপনার Agency অ্যাকাউন্টটি এখনো Pending Verification অবস্থায় আছে। লাইসেন্স ও Manual Payment যাচাইয়ের পর সিদ্ধান্ত জানানো হবে।"
+          t("login.agencyPending")
         );
         return;
       }
 
       if (data.role === "agency" && data.status === "rejected") {
-        setErrorNotice("আপনার Agency আবেদনটি অনুমোদিত হয়নি।");
+        setErrorNotice(t("login.agencyRejected"));
         return;
       }
 
@@ -68,7 +80,7 @@ export default function LoginPage() {
         router.push("/dashboard");
       }
     } catch {
-      setErrorNotice("ব্যাকএন্ড সার্ভারের সাথে সংযোগ করা যায়নি।");
+      setErrorNotice(t("common.serverError"));
     } finally {
       setSubmitting(false);
     }
@@ -77,7 +89,7 @@ export default function LoginPage() {
   return (
     <main className="mx-auto max-w-md px-4 py-10">
       <div className="mb-6 flex items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold text-slate-900">সাইন-ইন / লগইন</h1>
+        <h1 className="text-2xl font-bold text-slate-900">{t("login.title")}</h1>
         <LanguageSwitcher />
       </div>
 
@@ -87,7 +99,7 @@ export default function LoginPage() {
       >
         <div>
           <label htmlFor="login-email" className="block text-xs font-semibold text-slate-700">
-            ইমেইল ঠিকানা
+            {t("login.email")}
           </label>
           <input
             id="login-email"
@@ -102,7 +114,7 @@ export default function LoginPage() {
 
         <div>
           <label htmlFor="login-password" className="block text-xs font-semibold text-slate-700">
-            পাসওয়ার্ড
+            {t("login.password")}
           </label>
           <input
             id="login-password"
@@ -132,19 +144,34 @@ export default function LoginPage() {
           disabled={submitting}
           className="w-full rounded-xl bg-blue-600 py-3 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-50"
         >
-          {submitting ? "লগইন হচ্ছে..." : "লগইন করুন"}
+          {submitting ? t("login.submitting") : t("login.submit")}
         </button>
 
+        <a
+          href={`${API_BASE}/auth/google?locale=${encodeURIComponent(locale)}`}
+          className="block w-full rounded-xl border border-slate-300 bg-white py-3 text-center text-sm font-bold text-slate-800 hover:bg-slate-50"
+        >
+          {t("login.google")}
+        </a>
+
         <div className="pt-2 text-center text-xs text-slate-600">
-          নতুন অ্যাকাউন্ট প্রয়োজন?{" "}
+          {t("login.noAccount")}{" "}
           <Link href="/register" className="font-bold text-blue-600 underline">
-            রেজিস্ট্রেশন করুন
+            {t("login.register")}
           </Link>
         </div>
+        {errorNotice === t("login.verificationRequired") ? (
+          <Link
+            href={`/verify-email?email=${encodeURIComponent(email)}`}
+            className="block text-center text-xs font-bold text-blue-700 underline"
+          >
+            {t("login.verification")}
+          </Link>
+        ) : null}
       </form>
 
       <WhatsAppButton
-        defaultMessage="আসসালামু আলাইকুম, লগইন বা ভেরিফিকেশন বিষয়ে সাহায্য প্রয়োজন।"
+        defaultMessage={t("login.whatsappMessage")}
       />
     </main>
   );

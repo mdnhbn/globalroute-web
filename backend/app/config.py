@@ -24,6 +24,17 @@ class Settings(BaseSettings):
     WHATSAPP_TOKEN: str = Field(default="", repr=False)
     WHATSAPP_PHONE_NUMBER_ID: str = ""
 
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = Field(default=587, gt=0, le=65535)
+    SMTP_USERNAME: str = ""
+    SMTP_PASSWORD: str = Field(default="", repr=False)
+    SMTP_FROM_EMAIL: str = ""
+    SMTP_USE_SSL: bool = False
+
+    GOOGLE_CLIENT_ID: str = ""
+    GOOGLE_CLIENT_SECRET: str = Field(default="", repr=False)
+    GOOGLE_OAUTH_REDIRECT_URI: str = ""
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -38,6 +49,22 @@ class Settings(BaseSettings):
     @property
     def frontend_origins(self) -> list[str]:
         return [value.strip().rstrip("/") for value in self.FRONTEND_URL.split(",") if value.strip()]
+
+    @property
+    def primary_frontend_url(self) -> str:
+        return self.frontend_origins[0]
+
+    @property
+    def email_verification_configured(self) -> bool:
+        return bool(self.SMTP_HOST.strip() and self.SMTP_FROM_EMAIL.strip())
+
+    @property
+    def google_oauth_configured(self) -> bool:
+        return bool(
+            self.GOOGLE_CLIENT_ID.strip()
+            and self.GOOGLE_CLIENT_SECRET.strip()
+            and self.GOOGLE_OAUTH_REDIRECT_URI.strip()
+        )
 
     @model_validator(mode="after")
     def validate_deployment_settings(self):

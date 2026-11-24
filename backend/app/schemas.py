@@ -41,6 +41,20 @@ class UserLoginRequest(BaseModel):
     password: str = Field(..., min_length=1)
 
 
+class EmailVerificationRequest(BaseModel):
+    email: EmailStr
+    code: str = Field(..., pattern=r"^\d{6}$")
+
+
+class ResendVerificationRequest(BaseModel):
+    email: EmailStr
+
+
+class RegistrationResponse(BaseModel):
+    email: EmailStr
+    verification_required: bool = True
+
+
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"

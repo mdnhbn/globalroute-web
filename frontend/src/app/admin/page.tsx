@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import SessionNotice from "@/components/common/SessionNotice";
+import { useLocale } from "@/components/common/LocaleProvider";
 import { API_BASE, clearSessionToken, useAccountSession } from "@/lib/account-session";
 
 interface PendingAgencyItem {
@@ -34,17 +35,19 @@ class AdminRequestError extends Error {
 }
 
 export default function AdminPanelPage() {
+  const { t } = useLocale();
   const session = useAccountSession();
-  if (session.state === "loading") return <SessionNotice message="সেশন যাচাই হচ্ছে…" />;
-  if (session.state === "error") return <SessionNotice message="সেশন যাচাই করা যায়নি। আবার চেষ্টা করুন।" showLogin />;
+  if (session.state === "loading") return <SessionNotice message={t("session.checking")} />;
+  if (session.state === "error") return <SessionNotice message={t("session.error")} showLogin />;
   if (session.state !== "authenticated" || session.account.role !== "admin" || session.account.status !== "active") {
-    return <SessionNotice message="অ্যাডমিন প্যানেল খুলতে অ্যাডমিন অ্যাকাউন্টে লগইন করুন।" showLogin />;
+    return <SessionNotice message={t("admin.loginRequired")} showLogin />;
   }
 
   return <AdminPanel token={session.token} />;
 }
 
 function AdminPanel({ token }: { token: string }) {
+  const { t } = useLocale();
   const router = useRouter();
   const [agencies, setAgencies] = useState<PendingAgencyItem[]>([]);
   const [payments, setPayments] = useState<PendingPaymentItem[]>([]);
@@ -69,8 +72,8 @@ function AdminPanel({ token }: { token: string }) {
     if (error instanceof AdminRequestError && (error.status === 401 || error.status === 403)) {
       clearSessionToken();
       setAccessRevoked(true);
-    } else {
-      setFeedback(message);
+      } else {
+        setFeedback(message);
     }
   }, []);
 
@@ -94,10 +97,10 @@ function AdminPanel({ token }: { token: string }) {
         }
       })
       .catch((error) => {
-        if (!controller.signal.aborted) reportError(error, "পেন্ডিং আবেদন ও পেমেন্ট লোড করা যায়নি।");
+        if (!controller.signal.aborted) reportError(error, t("admin.loadError"));
       });
     return () => controller.abort();
-  }, [loadQueues, reportError]);
+  }, [loadQueues, reportError, t]);
 
   async function handleAgencyDecision(userId: number, decision: "approve" | "reject") {
     setFeedback("");
@@ -111,11 +114,11 @@ function AdminPanel({ token }: { token: string }) {
         }),
       });
     } catch (error) {
-      reportError(error, "সিদ্ধান্ত আপডেট করা যায়নি।");
+      reportError(error, t("admin.decisionError"));
       return;
     }
 
-    setFeedback(`User #${userId} এর জন্য ${decision.toUpperCase()} সম্পন্ন হয়েছে।`);
+    setFeedback(t("admin.decided", { userId, decision: decision.toUpperCase() }));
     setAgencies((current) => current.filter((agency) => agency.user_id !== userId));
     setPayments((current) => current.filter((payment) => payment.user_id !== userId));
     await loadQueues()
@@ -123,7 +126,7 @@ function AdminPanel({ token }: { token: string }) {
         setAgencies(agencies);
         setPayments(payments);
       })
-      .catch((error) => reportError(error, "সিদ্ধান্ত সেভ হয়েছে। পেন্ডিং তালিকা আবার লোড করা যায়নি।"));
+      .catch((error) => reportError(error, t("admin.reloadError")));
   }
 
   async function handleAddPaymentMethod(e: React.FormEvent) {
@@ -143,18 +146,18 @@ function AdminPanel({ token }: { token: string }) {
       });
       setAccountDetails("");
       setInstructions("");
-      setFeedback("নতুন পেমেন্ট মেথড সেভ হয়েছে।");
+      setFeedback(t("admin.paymentSaved"));
     } catch (error) {
-      reportError(error, "পেমেন্ট মেথড সেভ করা যায়নি।");
+      reportError(error, t("admin.paymentSaveError"));
     }
   }
 
-  if (accessRevoked) return <SessionNotice message="অ্যাডমিন সেশন শেষ হয়েছে। আবার লগইন করুন।" showLogin />;
+  if (accessRevoked) return <SessionNotice message={t("admin.sessionExpired")} showLogin />;
 
   return (
     <main className="mx-auto max-w-6xl space-y-8 px-4 py-8">
       <header className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold text-slate-900">Super Admin Panel</h1>
+        <h1 className="text-2xl font-bold text-slate-900">{t("admin.title")}</h1>
         <button
           type="button"
           onClick={() => {
@@ -163,7 +166,7 @@ function AdminPanel({ token }: { token: string }) {
           }}
           className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-50"
         >
-          লগআউট
+          {t("common.logout")}
         </button>
       </header>
 
@@ -172,9 +175,9 @@ function AdminPanel({ token }: { token: string }) {
       ) : null}
 
       <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="text-lg font-bold text-slate-900">Pending Agency Verification</h2>
+          <h2 className="text-lg font-bold text-slate-900">{t("admin.pendingAgencies")}</h2>
         {agencies.length === 0 ? (
-          <p className="mt-2 text-xs text-slate-500">কোনো পেন্ডিং এজেন্সি আবেদন নেই।</p>
+            <p className="mt-2 text-xs text-slate-500">{t("admin.noAgencies")}</p>
         ) : (
           <div className="mt-3 space-y-3">
             {agencies.map((ag) => (
@@ -186,8 +189,8 @@ function AdminPanel({ token }: { token: string }) {
                   <div className="font-bold text-slate-900">
                     {ag.agency_name} ({ag.registration_country}) — User #{ag.user_id}
                   </div>
-                  <div>License: {ag.license_number}</div>
-                  <div>Trade Doc: {ag.trade_license_doc} | Owner ID: {ag.owner_id_doc}</div>
+                  <div>{t("admin.licenseLabel")} {ag.license_number}</div>
+                  <div>{t("admin.documentsLabel")} {ag.trade_license_doc} | {ag.owner_id_doc}</div>
                 </div>
                 <div className="flex gap-2">
                   <button
@@ -195,14 +198,14 @@ function AdminPanel({ token }: { token: string }) {
                     onClick={() => handleAgencyDecision(ag.user_id, "approve")}
                     className="rounded-lg bg-emerald-600 px-3 py-1.5 font-semibold text-white hover:bg-emerald-700"
                   >
-                    Approve
+                    {t("admin.approve")}
                   </button>
                   <button
                     type="button"
                     onClick={() => handleAgencyDecision(ag.user_id, "reject")}
                     className="rounded-lg bg-red-600 px-3 py-1.5 font-semibold text-white hover:bg-red-700"
                   >
-                    Reject
+                    {t("admin.reject")}
                   </button>
                 </div>
               </div>
@@ -212,14 +215,14 @@ function AdminPanel({ token }: { token: string }) {
       </section>
 
       <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="text-lg font-bold text-slate-900">Pending Manual Payments</h2>
+          <h2 className="text-lg font-bold text-slate-900">{t("admin.pendingPayments")}</h2>
         {payments.length === 0 ? (
-          <p className="mt-2 text-xs text-slate-500">কোনো পেন্ডিং ম্যানুয়াল পেমেন্ট নেই।</p>
+            <p className="mt-2 text-xs text-slate-500">{t("admin.noPayments")}</p>
         ) : (
           <div className="mt-3 space-y-2 text-xs">
             {payments.map((pay) => (
               <div key={pay.id} className="rounded-lg border border-slate-200 p-3">
-                User #{pay.user_id} | {pay.method_name} | {pay.amount} {pay.currency} | Ref:{" "}
+                {t("admin.userLabel")} #{pay.user_id} | {pay.method_name} | {pay.amount} {pay.currency} | {t("admin.referenceLabel")}:{" "}
                 {pay.transaction_reference} | Proof: {pay.proof_reference || "N/A"}
               </div>
             ))}
@@ -228,11 +231,11 @@ function AdminPanel({ token }: { token: string }) {
       </section>
 
       <form onSubmit={handleAddPaymentMethod} className="max-w-xl space-y-3 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-base font-bold text-slate-900">দেশভিত্তিক Manual Payment মেথড যুক্ত করুন</h2>
+          <h2 className="text-base font-bold text-slate-900">{t("admin.addPayment")}</h2>
           <input
             type="text"
             required
-            placeholder="মেথড নাম (bKash, Nagad, Bank, Card, Payoneer, PayPal, Crypto)"
+              placeholder={t("admin.methodNamePlaceholder")}
             value={methodName}
             onChange={(e) => setMethodName(e.target.value)}
             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
@@ -240,7 +243,7 @@ function AdminPanel({ token }: { token: string }) {
           <input
             type="text"
             required
-            placeholder="দেশ (Bangladesh, India, Pakistan, ALL)"
+              placeholder={t("admin.countryPlaceholder")}
             value={countryScope}
             onChange={(e) => setCountryScope(e.target.value)}
             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
@@ -248,7 +251,7 @@ function AdminPanel({ token }: { token: string }) {
           <input
             type="text"
             required
-            placeholder="অ্যাকাউন্ট নম্বর / IBAN / ইমেইল / ওয়ালেট অ্যাড্রেস"
+              placeholder={t("admin.accountPlaceholder")}
             value={accountDetails}
             onChange={(e) => setAccountDetails(e.target.value)}
             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
@@ -256,13 +259,13 @@ function AdminPanel({ token }: { token: string }) {
           <textarea
             required
             rows={3}
-            placeholder="পেমেন্ট করার নির্দেশনা লিখুন..."
+              placeholder={t("admin.instructionsPlaceholder")}
             value={instructions}
             onChange={(e) => setInstructions(e.target.value)}
             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
           />
           <button type="submit" className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700">
-            Payment Method সেভ করুন
+            {t("admin.savePayment")}
           </button>
       </form>
     </main>
