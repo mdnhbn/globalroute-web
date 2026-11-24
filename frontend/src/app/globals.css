@@ -1,0 +1,10 @@
+/* Language: CSS | Target: Global Stylesheet for Next.js + Tailwind CSS */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
