@@ -1,4 +1,4 @@
-# Language: Python | Target: FastAPI Application Entrypoint (Render)
+# Language: Python | Target: FastAPI Application Entrypoint with Career & Visa Routes
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import app.models  # noqa: F401 - সব ডাটাবেজ মডেল রেজিস্টার করার জন্য
 from app.config import settings
 from app.database import Base, engine
-from app.routes import admin, auth, payments_and_ads
+from app.routes import admin, auth, career_visa, payments_and_ads
 
 
 @asynccontextmanager
@@ -41,3 +41,4 @@ def health_check():
 app.include_router(auth.router, prefix=settings.API_V1_STR)
 app.include_router(payments_and_ads.router, prefix=settings.API_V1_STR)
 app.include_router(admin.router, prefix=settings.API_V1_STR)
+app.include_router(career_visa.router, prefix=settings.API_V1_STR)
