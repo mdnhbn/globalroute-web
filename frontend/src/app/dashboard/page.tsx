@@ -1,31 +1,45 @@
-// Language: TypeScript (React/Next.js) | Target: Main User/Agency Dashboard with Warning, Backup & Ads
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 
-import ThirdPartyAdSlot from "@/components/ads/ThirdPartyAdSlot";
 import BackupRestorePanel from "@/components/backup/BackupRestorePanel";
 import LocalStorageWarning from "@/components/backup/LocalStorageWarning";
 import LanguageSwitcher from "@/components/common/LanguageSwitcher";
+import SessionNotice from "@/components/common/SessionNotice";
 import WhatsAppButton from "@/components/common/WhatsAppButton";
+import { clearSessionToken, useAccountSession } from "@/lib/account-session";
 import { autoSaveVaultPartial, loadLocalVault, LocalVaultPayload } from "@/lib/local-db";
 
-interface AdSlotItem {
-  id: number;
-  slot_name: string;
-  provider_label: string;
-  script_code: string;
-  is_active: boolean;
+export default function DashboardPage() {
+  const session = useAccountSession();
+  if (session.state === "loading") return <SessionNotice message="সেশন যাচাই হচ্ছে…" />;
+  if (session.state === "error") return <SessionNotice message="সেশন যাচাই করা যায়নি। আবার চেষ্টা করুন।" showLogin />;
+  if (session.state !== "authenticated") return <SessionNotice message="ড্যাশবোর্ড খুলতে লগইন করুন।" showLogin />;
+  if (session.account.status === "pending_verification") {
+    return <SessionNotice message="আপনার এজেন্সির আবেদন যাচাই চলছে।" showLogin />;
+  }
+  if (session.account.status !== "active") {
+    return <SessionNotice message="এই অ্যাকাউন্টে ড্যাশবোর্ড ব্যবহার করা যাচ্ছে না।" showLogin />;
+  }
+  if (session.account.role === "admin") {
+    return (
+      <main className="mx-auto max-w-5xl px-4 py-8">
+        <Link href="/admin" className="text-sm font-semibold text-blue-700 underline">অ্যাডমিন প্যানেলে যান</Link>
+      </main>
+    );
+  }
+
+  return <DashboardVault key={session.account.id} role={session.account.role} />;
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1";
-
-export default function DashboardPage() {
-  const [role, setRole] = useState<"individual" | "agency">("individual");
+function DashboardVault({ role }: { role: "individual" | "agency" }) {
+  const router = useRouter();
   const [vault, setVault] = useState<LocalVaultPayload | null>(null);
   const [noteText, setNoteText] = useState<string>("");
   const [saveStateLabel, setSaveStateLabel] = useState<string>("");
-  const [adSlots, setAdSlots] = useState<AdSlotItem[]>([]);
+  const autoBackupEnabled = vault?.autoBackupEnabled ?? false;
 
   useEffect(() => {
     let active = true;
@@ -37,32 +51,17 @@ export default function DashboardPage() {
         setNoteText(savedNote);
       })
       .catch(() => {
-        // লোকাল স্টোরেজ না থাকলে উপেক্ষা করা হবে
+        if (active) setSaveStateLabel("লোকাল স্টোরেজ খোলা যায়নি।");
       });
-
-    if (role === "individual") {
-      fetch(`${API_BASE}/ads/slots?audience=individual_and_public`)
-        .then((res) => (res.ok ? res.json() : []))
-        .then((items: AdSlotItem[]) => {
-          if (active && Array.isArray(items)) {
-            setAdSlots(items);
-          }
-        })
-        .catch(() => {
-          if (active) setAdSlots([]);
-        });
-    } else {
-      setAdSlots([]);
-    }
 
     return () => {
       active = false;
     };
-  }, [role]);
+  }, []);
 
   // হঠাৎ কারেন্ট বা ডিভাইস বন্ধ হলে ডাটা রক্ষার জন্য Auto-Save
   useEffect(() => {
-    if (!vault || !vault.autoBackupEnabled) return;
+    if (!autoBackupEnabled) return;
     const timer = window.setTimeout(() => {
       autoSaveVaultPartial((curr) => ({
         ...curr,
@@ -81,14 +80,14 @@ export default function DashboardPage() {
     }, 600);
 
     return () => window.clearTimeout(timer);
-  }, [noteText, vault?.autoBackupEnabled]);
+  }, [noteText, autoBackupEnabled]);
 
   return (
     <main className="mx-auto max-w-5xl space-y-6 px-4 py-8">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">
-            {role === "agency" ? "Agency ড্যাশবোর্ড (Ad-Free)" : "Individual ড্যাশবোর্ড"}
+            {role === "agency" ? "Agency ড্যাশবোর্ড" : "Individual ড্যাশবোর্ড"}
           </h1>
           <p className="text-xs text-slate-500">
             {saveStateLabel ? saveStateLabel : "লোকাল ডিভাইস সিঙ্ক সক্রিয়"}
@@ -98,10 +97,13 @@ export default function DashboardPage() {
         <div className="flex flex-wrap items-center gap-3">
           <button
             type="button"
-            onClick={() => setRole(role === "individual" ? "agency" : "individual")}
+            onClick={() => {
+              clearSessionToken();
+              router.replace("/login");
+            }}
             className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-50"
           >
-            View Mode: {role === "agency" ? "Agency" : "Individual"}
+            লগআউট
           </button>
           <LanguageSwitcher />
         </div>
@@ -109,18 +111,6 @@ export default function DashboardPage() {
 
       {/* বড় ও স্পষ্ট সতর্কবার্তা */}
       <LocalStorageWarning variant={role} />
-
-      {/* শুধু Individual ইউজারদের জন্য Admin-এর থার্ড-পার্টি অ্যাড স্লট */}
-      {role === "individual"
-        ? adSlots.map((slot) => (
-            <ThirdPartyAdSlot
-              key={slot.id}
-              slotName={slot.slot_name}
-              scriptCode={slot.script_code}
-              isAgencyUser={false}
-            />
-          ))
-        : null}
 
       {/* লোকাল Auto-Save ড্রাফট/প্রোফাইল নোট */}
       <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -150,7 +140,7 @@ export default function DashboardPage() {
         }}
       />
 
-      <WhatsAppButton phoneNumber="8801700000000" defaultMessage="আসসালামু আলাইকুম, আমি GlobalRoute সাপোর্টে কথা বলতে চাই।" />
+      <WhatsAppButton defaultMessage="আসসালামু আলাইকুম, আমি GlobalRoute সাপোর্টে কথা বলতে চাই।" />
     </main>
   );
 }

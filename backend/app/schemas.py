@@ -28,9 +28,9 @@ class UserRegisterRequest(BaseModel):
     owner_id_doc: Optional[str] = Field(default=None, max_length=500)
 
     # Agency রেজিস্ট্রেশনের সাথে Manual Payment প্রুফ
-    payment_method_id: Optional[int] = None
+    payment_method_id: Optional[int] = Field(default=None, gt=0, le=2_147_483_647)
     method_name: Optional[str] = Field(default=None, max_length=100)
-    amount: Optional[float] = Field(default=None, gt=0)
+    amount: Optional[float] = Field(default=None, gt=0, allow_inf_nan=False)
     currency: Optional[str] = Field(default="USD", max_length=20)
     transaction_reference: Optional[str] = Field(default=None, max_length=255)
     proof_reference: Optional[str] = Field(default=None, max_length=500)
@@ -65,9 +65,9 @@ class UserResponse(BaseModel):
 
 
 class ManualPaymentSubmitRequest(BaseModel):
-    payment_method_id: Optional[int] = None
+    payment_method_id: Optional[int] = Field(default=None, gt=0, le=2_147_483_647)
     method_name: str = Field(..., min_length=2, max_length=100)
-    amount: float = Field(..., gt=0)
+    amount: float = Field(..., gt=0, allow_inf_nan=False)
     currency: str = Field(default="USD", min_length=2, max_length=20)
     transaction_reference: str = Field(..., min_length=2, max_length=255)
     proof_reference: Optional[str] = Field(default=None, max_length=500)
@@ -108,7 +108,7 @@ class AgencySubmissionResponse(BaseModel):
 
 class AdminAgencyDecisionRequest(BaseModel):
     decision: str = Field(..., pattern="^(approve|reject)$")
-    note: Optional[str] = None
+    note: Optional[str] = Field(default=None, max_length=1000)
 
 
 class PaymentMethodCreateRequest(BaseModel):
@@ -127,25 +127,5 @@ class PaymentMethodResponse(BaseModel):
     country_scope: str
     account_details: str
     instructions: str
-    is_active: bool
-    created_at: datetime
-
-
-class AdScriptCreateRequest(BaseModel):
-    slot_name: str = Field(..., min_length=2, max_length=100)
-    provider_label: str = Field(..., min_length=2, max_length=120)
-    script_code: str = Field(..., min_length=1)
-    target_audience: str = Field(default="individual_and_public", max_length=50)
-    is_active: bool = True
-
-
-class AdScriptResponse(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    slot_name: str
-    provider_label: str
-    script_code: str
-    target_audience: str
     is_active: bool
     created_at: datetime

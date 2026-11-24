@@ -1,7 +1,9 @@
-// Language: TypeScript (React/Next.js) | Target: Super Admin Control Panel (Approvals, Payments & Ads)
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import SessionNotice from "@/components/common/SessionNotice";
+import { API_BASE, clearSessionToken, useAccountSession } from "@/lib/account-session";
 
 interface PendingAgencyItem {
   id: number;
@@ -25,12 +27,29 @@ interface PendingPaymentItem {
   status: string;
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1";
+class AdminRequestError extends Error {
+  constructor(readonly status: number) {
+    super(`Admin request failed (${status})`);
+  }
+}
 
 export default function AdminPanelPage() {
+  const session = useAccountSession();
+  if (session.state === "loading") return <SessionNotice message="সেশন যাচাই হচ্ছে…" />;
+  if (session.state === "error") return <SessionNotice message="সেশন যাচাই করা যায়নি। আবার চেষ্টা করুন।" showLogin />;
+  if (session.state !== "authenticated" || session.account.role !== "admin" || session.account.status !== "active") {
+    return <SessionNotice message="অ্যাডমিন প্যানেল খুলতে অ্যাডমিন অ্যাকাউন্টে লগইন করুন।" showLogin />;
+  }
+
+  return <AdminPanel token={session.token} />;
+}
+
+function AdminPanel({ token }: { token: string }) {
+  const router = useRouter();
   const [agencies, setAgencies] = useState<PendingAgencyItem[]>([]);
   const [payments, setPayments] = useState<PendingPaymentItem[]>([]);
   const [feedback, setFeedback] = useState<string>("");
+  const [accessRevoked, setAccessRevoked] = useState(false);
 
   // নতুন Payment Method যুক্ত করার ফর্ম
   const [methodName, setMethodName] = useState("bKash");
@@ -38,38 +57,52 @@ export default function AdminPanelPage() {
   const [accountDetails, setAccountDetails] = useState("");
   const [instructions, setInstructions] = useState("");
 
-  // নতুন Third-Party Ad Script যুক্ত করার ফর্ম
-  const [slotName, setSlotName] = useState("header_banner");
-  const [providerLabel, setProviderLabel] = useState("Adsterra");
-  const [scriptCode, setScriptCode] = useState("");
+  const request = useCallback(async (path: string, options?: RequestInit) => {
+    const headers = new Headers(options?.headers);
+    headers.set("Authorization", `Bearer ${token}`);
+    const response = await fetch(`${API_BASE}/admin${path}`, { ...options, headers, cache: "no-store" });
+    if (!response.ok) throw new AdminRequestError(response.status);
+    return response;
+  }, [token]);
 
-  async function loadQueues() {
-    try {
-      const [agRes, payRes] = await Promise.all([
-        fetch(`${API_BASE}/admin/agencies/pending`),
-        fetch(`${API_BASE}/admin/payments/pending`),
-      ]);
-      if (agRes.ok) {
-        const agData = await agRes.json();
-        if (Array.isArray(agData)) setAgencies(agData);
-      }
-      if (payRes.ok) {
-        const payData = await payRes.json();
-        if (Array.isArray(payData)) setPayments(payData);
-      }
-    } catch {
-      // ব্যাকএন্ড চালু না থাকলে তালিকা খালি থাকবে
+  const reportError = useCallback((error: unknown, message: string) => {
+    if (error instanceof AdminRequestError && (error.status === 401 || error.status === 403)) {
+      clearSessionToken();
+      setAccessRevoked(true);
+    } else {
+      setFeedback(message);
     }
-  }
+  }, []);
+
+  const loadQueues = useCallback(async (signal?: AbortSignal) => {
+    const [agenciesResponse, paymentsResponse] = await Promise.all([
+      request("/agencies/pending", { signal }),
+      request("/payments/pending", { signal }),
+    ]);
+    const agencies: Promise<PendingAgencyItem[]> = agenciesResponse.json();
+    const payments: Promise<PendingPaymentItem[]> = paymentsResponse.json();
+    return Promise.all([agencies, payments]);
+  }, [request]);
 
   useEffect(() => {
-    loadQueues();
-  }, []);
+    const controller = new AbortController();
+    loadQueues(controller.signal)
+      .then(([agencies, payments]) => {
+        if (!controller.signal.aborted) {
+          setAgencies(agencies);
+          setPayments(payments);
+        }
+      })
+      .catch((error) => {
+        if (!controller.signal.aborted) reportError(error, "পেন্ডিং আবেদন ও পেমেন্ট লোড করা যায়নি।");
+      });
+    return () => controller.abort();
+  }, [loadQueues, reportError]);
 
   async function handleAgencyDecision(userId: number, decision: "approve" | "reject") {
     setFeedback("");
     try {
-      const res = await fetch(`${API_BASE}/admin/agencies/${userId}/decide`, {
+      await request(`/agencies/${userId}/decide`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -77,20 +110,27 @@ export default function AdminPanelPage() {
           note: decision === "approve" ? "Verified by Admin" : "Documents/Payment verification failed",
         }),
       });
-      if (res.ok) {
-        setFeedback(`User #${userId} এর জন্য ${decision.toUpperCase()} সম্পন্ন হয়েছে।`);
-        await loadQueues();
-      }
-    } catch {
-      setFeedback("সিদ্ধান্ত আপডেট করা যায়নি।");
+    } catch (error) {
+      reportError(error, "সিদ্ধান্ত আপডেট করা যায়নি।");
+      return;
     }
+
+    setFeedback(`User #${userId} এর জন্য ${decision.toUpperCase()} সম্পন্ন হয়েছে।`);
+    setAgencies((current) => current.filter((agency) => agency.user_id !== userId));
+    setPayments((current) => current.filter((payment) => payment.user_id !== userId));
+    await loadQueues()
+      .then(([agencies, payments]) => {
+        setAgencies(agencies);
+        setPayments(payments);
+      })
+      .catch((error) => reportError(error, "সিদ্ধান্ত সেভ হয়েছে। পেন্ডিং তালিকা আবার লোড করা যায়নি।"));
   }
 
   async function handleAddPaymentMethod(e: React.FormEvent) {
     e.preventDefault();
     setFeedback("");
     try {
-      const res = await fetch(`${API_BASE}/admin/payment-methods`, {
+      await request("/payment-methods", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -101,46 +141,34 @@ export default function AdminPanelPage() {
           is_active: true,
         }),
       });
-      if (res.ok) {
-        setAccountDetails("");
-        setInstructions("");
-        setFeedback("নতুন পেমেন্ট মেথড সেভ হয়েছে।");
-      }
-    } catch {
-      setFeedback("পেমেন্ট মেথড সেভ করা যায়নি।");
+      setAccountDetails("");
+      setInstructions("");
+      setFeedback("নতুন পেমেন্ট মেথড সেভ হয়েছে।");
+    } catch (error) {
+      reportError(error, "পেমেন্ট মেথড সেভ করা যায়নি।");
     }
   }
 
-  async function handleAddAdScript(e: React.FormEvent) {
-    e.preventDefault();
-    setFeedback("");
-    try {
-      const res = await fetch(`${API_BASE}/admin/ad-scripts`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          slot_name: slotName,
-          provider_label: providerLabel,
-          script_code: scriptCode,
-          target_audience: "individual_and_public",
-          is_active: true,
-        }),
-      });
-      if (res.ok) {
-        setScriptCode("");
-        setFeedback("থার্ড-পার্টি অ্যাড স্ক্রিপ্ট সেভ হয়েছে।");
-      }
-    } catch {
-      setFeedback("অ্যাড স্ক্রিপ্ট সেভ করা যায়নি।");
-    }
-  }
+  if (accessRevoked) return <SessionNotice message="অ্যাডমিন সেশন শেষ হয়েছে। আবার লগইন করুন।" showLogin />;
 
   return (
     <main className="mx-auto max-w-6xl space-y-8 px-4 py-8">
-      <h1 className="text-2xl font-bold text-slate-900">Super Admin Panel</h1>
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold text-slate-900">Super Admin Panel</h1>
+        <button
+          type="button"
+          onClick={() => {
+            clearSessionToken();
+            router.replace("/login");
+          }}
+          className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-50"
+        >
+          লগআউট
+        </button>
+      </header>
 
       {feedback ? (
-        <p className="rounded-lg bg-blue-50 px-4 py-2.5 text-xs font-semibold text-blue-900">{feedback}</p>
+        <p role="status" className="rounded-lg bg-blue-50 px-4 py-2.5 text-xs font-semibold text-blue-900">{feedback}</p>
       ) : null}
 
       <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -199,8 +227,7 @@ export default function AdminPanelPage() {
         )}
       </section>
 
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-        <form onSubmit={handleAddPaymentMethod} className="space-y-3 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <form onSubmit={handleAddPaymentMethod} className="max-w-xl space-y-3 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="text-base font-bold text-slate-900">দেশভিত্তিক Manual Payment মেথড যুক্ত করুন</h2>
           <input
             type="text"
@@ -237,39 +264,7 @@ export default function AdminPanelPage() {
           <button type="submit" className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700">
             Payment Method সেভ করুন
           </button>
-        </form>
-
-        <form onSubmit={handleAddAdScript} className="space-y-3 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-base font-bold text-slate-900">থার্ড-পার্টি অ্যাড স্ক্রিপ্ট যুক্ত করুন (Non-AdSense)</h2>
-          <input
-            type="text"
-            required
-            placeholder="স্লট নাম (header_banner, sidebar, footer)"
-            value={slotName}
-            onChange={(e) => setSlotName(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-          />
-          <input
-            type="text"
-            required
-            placeholder="প্রোভাইডার (Adsterra, Ad Manager, Custom)"
-            value={providerLabel}
-            onChange={(e) => setProviderLabel(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-          />
-          <textarea
-            required
-            rows={4}
-            placeholder="এখানে থার্ড-পার্টি বিজ্ঞাপনের স্ক্রিপ্ট বা কোড পেস্ট করুন..."
-            value={scriptCode}
-            onChange={(e) => setScriptCode(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 p-3 font-mono text-xs"
-          />
-          <button type="submit" className="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700">
-            Ad Script সেভ করুন
-          </button>
-        </form>
-      </div>
+      </form>
     </main>
   );
 }

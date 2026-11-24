@@ -4,16 +4,14 @@
 import React from "react";
 
 interface WhatsAppButtonProps {
-  phoneNumber: string;
   defaultMessage?: string;
 }
 
 export default function WhatsAppButton({
-  phoneNumber,
   defaultMessage = "Hello, I need help with GlobalRoute.",
 }: WhatsAppButtonProps) {
-  const cleanPhone = phoneNumber.replace(/[^0-9]/g, "");
-  if (!cleanPhone) return null;
+  const cleanPhone = (process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? "").replace(/[^0-9]/g, "");
+  if (!/^[1-9]\d{6,14}$/.test(cleanPhone)) return null;
 
   const href = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(defaultMessage)}`;
 

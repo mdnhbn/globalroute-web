@@ -1,21 +1,33 @@
-# Language: YAML | Target: Render Service Blueprint
 services:
   - type: web
     name: globalroute-backend
     runtime: python
+    plan: free
+    region: singapore
     rootDir: backend
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
     envVars:
+      - key: APP_ENV
+        value: production
       - key: DATABASE_URL
         sync: false
       - key: SECRET_KEY
         generateValue: true
       - key: FRONTEND_URL
-        value: "*"
-      - key: WHATSAPP_API_URL
         sync: false
-      - key: WHATSAPP_TOKEN
-        sync: false
-      - key: WHATSAPP_PHONE_NUMBER_ID
+
+  - type: web
+    name: globalroute-web
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: out
+    envVars:
+      - key: NODE_VERSION
+        value: '24'
+      - key: NEXT_STATIC_EXPORT
+        value: '1'
+      - key: NEXT_PUBLIC_API_BASE_URL
         sync: false

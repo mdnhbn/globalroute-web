@@ -1,13 +1,15 @@
-# Language: Python | Target: Password Hashing & JWT Token Utilities
 from datetime import datetime, timedelta, timezone
-from typing import Any, Optional
 
-from jose import JWTError, jwt
+import jwt
 from passlib.context import CryptContext
 
 from app.config import settings
 
-pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
+
+pwd_context = CryptContext(
+    schemes=["pbkdf2_sha256"],
+    pbkdf2_sha256__default_rounds=600_000,
+)
 
 
 def hash_password(password: str) -> str:
@@ -18,18 +20,19 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
 
-def create_access_token(data: dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:
-    to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + (
-        expires_delta if expires_delta is not None else timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    )
-    to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+def create_access_token(data: dict) -> str:
+    now = datetime.now(timezone.utc)
+    payload = {**data, "exp": now + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)}
+    return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
-def decode_access_token(token: str) -> Optional[dict[str, Any]]:
+def decode_access_token(token: str) -> dict | None:
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        return payload
-    except JWTError:
+        return jwt.decode(
+            token,
+            settings.SECRET_KEY,
+            algorithms=[settings.ALGORITHM],
+            options={"require": ["sub", "exp"]},
+        )
+    except jwt.InvalidTokenError:
         return None

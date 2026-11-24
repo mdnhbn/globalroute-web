@@ -1,0 +1,16 @@
+.env
+.env.*
+!.env.example
+.vercel/
+.next/
+node_modules/
+frontend/out/
+next-env.d.ts
+*.tsbuildinfo
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+*.db
+*.db-shm
+*.db-wal

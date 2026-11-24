@@ -18,21 +18,14 @@ interface LanguageSwitcherProps {
 const STORAGE_KEY = "globalroute_selected_locale";
 
 export default function LanguageSwitcher({ value, onChange }: LanguageSwitcherProps) {
-  const [selected, setSelected] = useState<SupportedLocale>(() => {
-    if (value) return normalizeLocale(value);
+  const [localSelection, setLocalSelection] = useState<SupportedLocale>(() => {
     if (typeof window !== "undefined") {
       const saved = window.localStorage.getItem(STORAGE_KEY);
       if (saved) return normalizeLocale(saved);
     }
     return "en";
   });
-
-  useEffect(() => {
-    if (value) {
-      const normalized = normalizeLocale(value);
-      setSelected(normalized);
-    }
-  }, [value]);
+  const selected = value ? normalizeLocale(value) : localSelection;
 
   useEffect(() => {
     if (typeof document !== "undefined") {
@@ -46,7 +39,7 @@ export default function LanguageSwitcher({ value, onChange }: LanguageSwitcherPr
 
   function handleSelectChange(e: React.ChangeEvent<HTMLSelectElement>) {
     const nextLocale = normalizeLocale(e.target.value);
-    setSelected(nextLocale);
+    setLocalSelection(nextLocale);
     if (onChange) {
       onChange(nextLocale);
     }

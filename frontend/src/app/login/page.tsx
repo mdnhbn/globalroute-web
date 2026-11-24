@@ -7,14 +7,13 @@ import { useRouter } from "next/navigation";
 
 import LanguageSwitcher from "@/components/common/LanguageSwitcher";
 import WhatsAppButton from "@/components/common/WhatsAppButton";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1";
+import { API_BASE, saveSessionToken, type AccountRole, type AccountStatus } from "@/lib/account-session";
 
 interface LoginApiResponse {
   access_token: string;
   token_type: string;
-  role: "individual" | "agency" | "admin";
-  status: "active" | "pending_verification" | "rejected" | "suspended";
+  role: AccountRole;
+  status: AccountStatus;
   preferred_language: string;
   detail?: string;
 }
@@ -46,24 +45,20 @@ export default function LoginPage() {
         return;
       }
 
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem("globalroute_token", data.access_token);
-        window.localStorage.setItem("globalroute_role", data.role);
-        window.localStorage.setItem("globalroute_status", data.status);
-        if (data.preferred_language) {
-          window.localStorage.setItem("globalroute_selected_locale", data.preferred_language);
-        }
+      saveSessionToken(data.access_token);
+      if (data.preferred_language) {
+        window.localStorage.setItem("globalroute_selected_locale", data.preferred_language);
       }
 
       if (data.role === "agency" && data.status === "pending_verification") {
         setStatusNotice(
-          "আপনার Agency অ্যাকাউন্টটি এখনো Pending Verification অবস্থায় আছে। আপনার লাইসেন্স ও Manual Payment যাচাই হওয়ার পর অনুমোদন দেওয়া হবে এবং WhatsApp-এ জানানো হবে।"
+          "আপনার Agency অ্যাকাউন্টটি এখনো Pending Verification অবস্থায় আছে। লাইসেন্স ও Manual Payment যাচাইয়ের পর সিদ্ধান্ত জানানো হবে।"
         );
         return;
       }
 
       if (data.role === "agency" && data.status === "rejected") {
-        setErrorNotice("আপনার Agency আবেদনটি অনুমোদিত হয়নি। বিস্তারিত জানতে WhatsApp সাপোর্টে যোগাযোগ করুন।");
+        setErrorNotice("আপনার Agency আবেদনটি অনুমোদিত হয়নি।");
         return;
       }
 
@@ -98,6 +93,7 @@ export default function LoginPage() {
             id="login-email"
             type="email"
             required
+            autoComplete="username"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-600 focus:outline-none"
@@ -112,6 +108,7 @@ export default function LoginPage() {
             id="login-password"
             type="password"
             required
+            autoComplete="current-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-600 focus:outline-none"
@@ -147,7 +144,6 @@ export default function LoginPage() {
       </form>
 
       <WhatsAppButton
-        phoneNumber="8801700000000"
         defaultMessage="আসসালামু আলাইকুম, লগইন বা ভেরিফিকেশন বিষয়ে সাহায্য প্রয়োজন।"
       />
     </main>

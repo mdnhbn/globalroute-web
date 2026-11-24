@@ -59,7 +59,6 @@ export default function HomePage() {
       <LocalStorageWarning variant="individual" compact />
 
       <WhatsAppButton
-        phoneNumber="8801700000000"
         defaultMessage="Hello, I want to know more about GlobalRoute."
       />
     </main>

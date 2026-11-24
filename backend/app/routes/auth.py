@@ -1,13 +1,18 @@
 # Language: Python | Target: Authentication & Individual/Agency Registration Routes
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.dependencies import get_current_user
 from app.models.agency_submission import AgencySubmission, VerificationStatus
 from app.models.manual_payment import ManualPayment, PaymentVerificationStatus
 from app.models.user import AccountStatus, User, UserRole
 from app.schemas import TokenResponse, UserLoginRequest, UserRegisterRequest, UserResponse
 from app.security import create_access_token, hash_password, verify_password
+from app.services.payment_service import get_payment_method_name
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -23,6 +28,7 @@ def register_user(payload: UserRegisterRequest, db: Session = Depends(get_db)):
 
     is_agency = payload.account_type == UserRole.AGENCY
 
+    method_name = None
     if is_agency:
         missing_fields = [
             name
@@ -37,13 +43,15 @@ def register_user(payload: UserRegisterRequest, db: Session = Depends(get_db)):
                 ("amount", payload.amount),
                 ("transaction_reference", payload.transaction_reference),
             ]
-            if not val
+            if not val or (isinstance(val, str) and not val.strip())
         ]
         if missing_fields:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=f"Agency registration requires documents and manual payment proof: {', '.join(missing_fields)}",
             )
+
+        method_name = get_payment_method_name(db, payload.payment_method_id, payload.method_name)
 
     new_user = User(
         full_name=payload.full_name.strip(),
@@ -57,7 +65,13 @@ def register_user(payload: UserRegisterRequest, db: Session = Depends(get_db)):
         is_active=True,
     )
     db.add(new_user)
-    db.flush()  # new_user.id পেতে
+    try:
+        db.flush()
+    except IntegrityError:
+        db.rollback()
+        if db.query(User).filter(User.email == new_user.email).first() is not None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
+        raise
 
     if is_agency:
         submission = AgencySubmission(
@@ -76,7 +90,7 @@ def register_user(payload: UserRegisterRequest, db: Session = Depends(get_db)):
         payment_record = ManualPayment(
             user_id=new_user.id,
             payment_method_id=payload.payment_method_id,
-            method_name=payload.method_name.strip(),
+            method_name=method_name,
             amount=float(payload.amount),
             currency=(payload.currency or "USD").strip().upper(),
             transaction_reference=payload.transaction_reference.strip(),
@@ -88,6 +102,11 @@ def register_user(payload: UserRegisterRequest, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_user)
     return new_user
+
+
+@router.get("/me", response_model=UserResponse)
+def read_current_user(user: Annotated[User, Depends(get_current_user)]):
+    return user
 
 
 @router.post("/login", response_model=TokenResponse)
